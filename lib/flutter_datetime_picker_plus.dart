@@ -15,6 +15,8 @@ typedef DateChangedCallback = void Function(DateTime time);
 typedef DateCancelledCallback = void Function();
 typedef StringAtIndexCallBack = String? Function(int index);
 
+enum DatePickerPopupDirection { bottomToTop, rightToLeft }
+
 class DatePicker {
   ///
   /// Display date picker bottom sheet.
@@ -33,27 +35,32 @@ class DatePicker {
     Widget? cancelWidget,
     String? title,
     double? hengMargin,
+    DatePickerPopupDirection popupDirection =
+        DatePickerPopupDirection.bottomToTop,
   }) async {
     return await Navigator.push(
       context,
       _DatePickerRoute(
-          showTitleActions: showTitleActions,
-          onChanged: onChanged,
-          onConfirm: onConfirm,
-          onCancel: onCancel,
+        showTitleActions: showTitleActions,
+        onChanged: onChanged,
+        onConfirm: onConfirm,
+        onCancel: onCancel,
+        locale: locale,
+        theme: theme,
+        barrierLabel: MaterialLocalizations.of(
+          context,
+        ).modalBarrierDismissLabel,
+        pickerModel: DatePickerModel(
+          currentTimeParam: currentTime,
+          maxTimeParam: maxTime,
+          minTimeParam: minTime,
           locale: locale,
-          theme: theme,
-          barrierLabel:
-              MaterialLocalizations.of(context).modalBarrierDismissLabel,
-          pickerModel: DatePickerModel(
-            currentTimeParam: currentTime,
-            maxTimeParam: maxTime,
-            minTimeParam: minTime,
-            locale: locale,
-          ),
-          cancelWidget: cancelWidget,
-          title: title,
-          hengMargin: hengMargin),
+        ),
+        cancelWidget: cancelWidget,
+        title: title,
+        hengMargin: hengMargin,
+        popupDirection: popupDirection,
+      ),
     );
   }
 
@@ -80,8 +87,9 @@ class DatePicker {
         onCancel: onCancel,
         locale: locale,
         theme: theme,
-        barrierLabel:
-            MaterialLocalizations.of(context).modalBarrierDismissLabel,
+        barrierLabel: MaterialLocalizations.of(
+          context,
+        ).modalBarrierDismissLabel,
         pickerModel: TimePickerModel(
           currentTime: currentTime,
           locale: locale,
@@ -113,8 +121,9 @@ class DatePicker {
         onCancel: onCancel,
         locale: locale,
         theme: theme,
-        barrierLabel:
-            MaterialLocalizations.of(context).modalBarrierDismissLabel,
+        barrierLabel: MaterialLocalizations.of(
+          context,
+        ).modalBarrierDismissLabel,
         pickerModel: Time12hPickerModel(
           currentTime: currentTime,
           locale: locale,
@@ -147,8 +156,9 @@ class DatePicker {
         onCancel: onCancel,
         locale: locale,
         theme: theme,
-        barrierLabel:
-            MaterialLocalizations.of(context).modalBarrierDismissLabel,
+        barrierLabel: MaterialLocalizations.of(
+          context,
+        ).modalBarrierDismissLabel,
         pickerModel: DateTimePickerModel(
           currentTime: currentTime,
           minTime: minTime,
@@ -181,8 +191,9 @@ class DatePicker {
         onCancel: onCancel,
         locale: locale,
         theme: theme,
-        barrierLabel:
-            MaterialLocalizations.of(context).modalBarrierDismissLabel,
+        barrierLabel: MaterialLocalizations.of(
+          context,
+        ).modalBarrierDismissLabel,
         pickerModel: pickerModel,
       ),
     );
@@ -203,9 +214,10 @@ class _DatePickerRoute<T> extends PopupRoute<T> {
     this.cancelWidget,
     this.title,
     this.hengMargin,
-  })  : pickerModel = pickerModel ?? DatePickerModel(),
-        theme = theme ?? picker_theme.DatePickerTheme(),
-        super();
+    this.popupDirection = DatePickerPopupDirection.bottomToTop,
+  }) : pickerModel = pickerModel ?? DatePickerModel(),
+       theme = theme ?? picker_theme.DatePickerTheme(),
+       super();
 
   final bool? showTitleActions;
   final DateChangedCallback? onChanged;
@@ -217,9 +229,13 @@ class _DatePickerRoute<T> extends PopupRoute<T> {
   final Widget? cancelWidget;
   final String? title;
   final double? hengMargin;
+  final DatePickerPopupDirection popupDirection;
 
   @override
-  Duration get transitionDuration => const Duration(milliseconds: 200);
+  Duration get transitionDuration =>
+      popupDirection == DatePickerPopupDirection.rightToLeft
+      ? const Duration(milliseconds: 250)
+      : const Duration(milliseconds: 200);
 
   @override
   bool get barrierDismissible => true;
@@ -244,14 +260,18 @@ class _DatePickerRoute<T> extends PopupRoute<T> {
   @override
   AnimationController createAnimationController() {
     assert(_animationController == null);
-    _animationController =
-        BottomSheet.createAnimationController(navigator!.overlay!);
+    _animationController = BottomSheet.createAnimationController(
+      navigator!.overlay!,
+    );
     return _animationController!;
   }
 
   @override
-  Widget buildPage(BuildContext context, Animation<double> animation,
-      Animation<double> secondaryAnimation) {
+  Widget buildPage(
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+  ) {
     Widget bottomSheet = MediaQuery.removePadding(
       context: context,
       removeTop: true,
@@ -319,13 +339,16 @@ class _DatePickerState extends State<_DatePickerComponent> {
   }
 
   void refreshScrollOffset() {
-//    print('refreshScrollOffset ${widget.pickerModel.currentRightIndex()}');
+    //    print('refreshScrollOffset ${widget.pickerModel.currentRightIndex()}');
     leftScrollCtrl = FixedExtentScrollController(
-        initialItem: widget.pickerModel.currentLeftIndex());
+      initialItem: widget.pickerModel.currentLeftIndex(),
+    );
     middleScrollCtrl = FixedExtentScrollController(
-        initialItem: widget.pickerModel.currentMiddleIndex());
+      initialItem: widget.pickerModel.currentMiddleIndex(),
+    );
     rightScrollCtrl = FixedExtentScrollController(
-        initialItem: widget.pickerModel.currentRightIndex());
+      initialItem: widget.pickerModel.currentRightIndex(),
+    );
   }
 
   @override
@@ -338,15 +361,20 @@ class _DatePickerState extends State<_DatePickerComponent> {
         builder: (BuildContext context, Widget? child) {
           final double bottomPadding = MediaQuery.of(context).padding.bottom;
           final double screenWidth = MediaQuery.of(context).size.height;
+          final double layoutProgress =
+              widget.route.popupDirection == DatePickerPopupDirection.rightToLeft
+                  ? Curves.easeOutCubic.transform(widget.route.animation!.value)
+                  : widget.route.animation!.value;
           return ClipRect(
             child: CustomSingleChildLayout(
               delegate: _BottomPickerLayout(
-                widget.route.animation!.value,
+                layoutProgress,
                 theme,
                 showTitleActions: widget.route.showTitleActions!,
                 bottomPadding: bottomPadding,
                 isHeng: isHeng,
                 screenWidth: screenWidth,
+                popupDirection: widget.route.popupDirection,
               ),
               child: Material(
                 // color: theme.backgroundColor,
@@ -386,8 +414,9 @@ class _DatePickerState extends State<_DatePickerComponent> {
           // 横屏时让内容区域填满剩余空间
           isHeng ? Expanded(child: itemView) : itemView,
           Container(
-              height: MediaQuery.of(context).padding.bottom,
-              color: theme.backgroundColor),
+            height: MediaQuery.of(context).padding.bottom,
+            color: theme.backgroundColor,
+          ),
         ],
       );
     }
@@ -449,8 +478,10 @@ class _DatePickerState extends State<_DatePickerComponent> {
                   style: isSelected
                       ? theme.itemStyle
                       : TextStyle(
-                          color: Color(0xFF8F9BB2)
-                              .withAlpha(getAlpha(index, nowIndex))),
+                          color: Color(
+                            0xFF8F9BB2,
+                          ).withAlpha(getAlpha(index, nowIndex)),
+                        ),
                   textAlign: TextAlign.start,
                 ),
               );
@@ -482,96 +513,110 @@ class _DatePickerState extends State<_DatePickerComponent> {
   Widget _renderItemView(picker_theme.DatePickerTheme theme) {
     return Container(
       color: theme.backgroundColor,
-      child: Stack(children: [
-        Directionality(
-          textDirection: TextDirection.ltr,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: <Widget>[
-              SizedBox(width: 64, height: 40),
-              Container(
-                child: widget.pickerModel.layoutProportions()[0] > 0
-                    ? _renderColumnView(
-                        ValueKey(widget.pickerModel.currentLeftIndex()),
-                        theme,
-                        widget.pickerModel.leftStringAtIndex,
-                        leftScrollCtrl,
-                        widget.pickerModel.layoutProportions()[0], (index) {
-                        widget.pickerModel.setLeftIndex(index);
-                      }, (index) {
-                        setState(() {
-                          refreshScrollOffset();
-                          _notifyDateChanged();
-                        });
-                      }, 0)
-                    : null,
-              ),
-              Text(
-                widget.pickerModel.leftDivider(),
-                style: theme.itemStyle,
-              ),
-              Container(
-                child: widget.pickerModel.layoutProportions()[1] > 0
-                    ? _renderColumnView(
-                        ValueKey(widget.pickerModel.currentLeftIndex()),
-                        theme,
-                        widget.pickerModel.middleStringAtIndex,
-                        middleScrollCtrl,
-                        widget.pickerModel.layoutProportions()[1], (index) {
-                        widget.pickerModel.setMiddleIndex(index);
-                      }, (index) {
-                        setState(() {
-                          refreshScrollOffset();
-                          _notifyDateChanged();
-                        });
-                      }, 1)
-                    : null,
-              ),
-              Text(
-                widget.pickerModel.rightDivider(),
-                style: theme.itemStyle,
-              ),
-              Container(
-                child: widget.pickerModel.layoutProportions()[2] > 0
-                    ? _renderColumnView(
-                        ValueKey(widget.pickerModel.currentMiddleIndex() * 100 +
-                            widget.pickerModel.currentLeftIndex()),
-                        theme,
-                        widget.pickerModel.rightStringAtIndex,
-                        rightScrollCtrl,
-                        widget.pickerModel.layoutProportions()[2], (index) {
-                        widget.pickerModel.setRightIndex(index);
-                      }, (index) {
-                        setState(() {
-                          refreshScrollOffset();
-                          _notifyDateChanged();
-                        });
-                      }, 2)
-                    : null,
-              ),
-              SizedBox(width: 64, height: 40),
-            ],
+      child: Stack(
+        children: [
+          Directionality(
+            textDirection: TextDirection.ltr,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: <Widget>[
+                SizedBox(width: 64, height: 40),
+                Container(
+                  child: widget.pickerModel.layoutProportions()[0] > 0
+                      ? _renderColumnView(
+                          ValueKey(widget.pickerModel.currentLeftIndex()),
+                          theme,
+                          widget.pickerModel.leftStringAtIndex,
+                          leftScrollCtrl,
+                          widget.pickerModel.layoutProportions()[0],
+                          (index) {
+                            widget.pickerModel.setLeftIndex(index);
+                          },
+                          (index) {
+                            setState(() {
+                              refreshScrollOffset();
+                              _notifyDateChanged();
+                            });
+                          },
+                          0,
+                        )
+                      : null,
+                ),
+                Text(widget.pickerModel.leftDivider(), style: theme.itemStyle),
+                Container(
+                  child: widget.pickerModel.layoutProportions()[1] > 0
+                      ? _renderColumnView(
+                          ValueKey(widget.pickerModel.currentLeftIndex()),
+                          theme,
+                          widget.pickerModel.middleStringAtIndex,
+                          middleScrollCtrl,
+                          widget.pickerModel.layoutProportions()[1],
+                          (index) {
+                            widget.pickerModel.setMiddleIndex(index);
+                          },
+                          (index) {
+                            setState(() {
+                              refreshScrollOffset();
+                              _notifyDateChanged();
+                            });
+                          },
+                          1,
+                        )
+                      : null,
+                ),
+                Text(widget.pickerModel.rightDivider(), style: theme.itemStyle),
+                Container(
+                  child: widget.pickerModel.layoutProportions()[2] > 0
+                      ? _renderColumnView(
+                          ValueKey(
+                            widget.pickerModel.currentMiddleIndex() * 100 +
+                                widget.pickerModel.currentLeftIndex(),
+                          ),
+                          theme,
+                          widget.pickerModel.rightStringAtIndex,
+                          rightScrollCtrl,
+                          widget.pickerModel.layoutProportions()[2],
+                          (index) {
+                            widget.pickerModel.setRightIndex(index);
+                          },
+                          (index) {
+                            setState(() {
+                              refreshScrollOffset();
+                              _notifyDateChanged();
+                            });
+                          },
+                          2,
+                        )
+                      : null,
+                ),
+                SizedBox(width: 64, height: 40),
+              ],
+            ),
           ),
-        ),
-        Positioned(
+          Positioned(
             top: 0,
             bottom: 0,
             left: 0,
             right: 0,
             child: IgnorePointer(
-                ignoring: true,
-                child: Center(
-                    child: Container(
-                        width: double.infinity,
-                        height: 40,
-                        decoration: BoxDecoration(
-                            color: Colors.transparent,
-                            border: Border(
-                                top: BorderSide(
-                                    width: 0.5, color: Color(0xFFE6E8ED)),
-                                bottom: BorderSide(
-                                    width: 0.5, color: Color(0xFFE6E8ED))))))))
-      ]),
+              ignoring: true,
+              child: Center(
+                child: Container(
+                  width: double.infinity,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: Colors.transparent,
+                    border: Border(
+                      top: BorderSide(width: 0.5, color: Color(0xFFE6E8ED)),
+                      bottom: BorderSide(width: 0.5, color: Color(0xFFE6E8ED)),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -583,66 +628,57 @@ class _DatePickerState extends State<_DatePickerComponent> {
     bool isHeng = MediaQuery.of(context).orientation == Orientation.landscape;
 
     return ClipRRect(
-        borderRadius: isHeng
-            ? BorderRadius.zero
-            : BorderRadius.only(
-                topLeft: Radius.circular(20.0),
-                topRight: Radius.circular(20.0),
-              ),
-        child: Container(
-          height: theme.titleHeight,
-          decoration: BoxDecoration(
-            color: theme.headerColor ?? theme.backgroundColor,
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: <Widget>[
-              widget.cancelWidget ??
-                  SizedBox(
-                    height: theme.titleHeight,
-                    child: CupertinoButton(
-                      pressedOpacity: 0.3,
-                      padding: EdgeInsetsDirectional.only(start: 16, top: 0),
-                      child: Text(
-                        cancel,
-                        style: theme.cancelStyle,
-                      ),
-                      onPressed: () {
-                        Navigator.pop(context);
-                        if (widget.route.onCancel != null) {
-                          widget.route.onCancel!();
-                        }
-                      },
-                    ),
+      borderRadius: isHeng
+          ? BorderRadius.zero
+          : BorderRadius.only(
+              topLeft: Radius.circular(20.0),
+              topRight: Radius.circular(20.0),
+            ),
+      child: Container(
+        height: theme.titleHeight,
+        decoration: BoxDecoration(
+          color: theme.headerColor ?? theme.backgroundColor,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: <Widget>[
+            widget.cancelWidget ??
+                SizedBox(
+                  height: theme.titleHeight,
+                  child: CupertinoButton(
+                    pressedOpacity: 0.3,
+                    padding: EdgeInsetsDirectional.only(start: 16, top: 0),
+                    child: Text(cancel, style: theme.cancelStyle),
+                    onPressed: () {
+                      Navigator.pop(context);
+                      if (widget.route.onCancel != null) {
+                        widget.route.onCancel!();
+                      }
+                    },
                   ),
-              SizedBox(
-                height: theme.titleHeight,
-                child: Center(
-                    child: Text(
-                  title,
-                  style: theme.titleStyle,
-                )),
-              ),
-              SizedBox(
-                height: theme.titleHeight,
-                child: CupertinoButton(
-                  pressedOpacity: 0.3,
-                  padding: EdgeInsetsDirectional.only(end: 16, top: 0),
-                  child: Text(
-                    done,
-                    style: theme.doneStyle,
-                  ),
-                  onPressed: () {
-                    Navigator.pop(context, widget.pickerModel.finalTime());
-                    if (widget.route.onConfirm != null) {
-                      widget.route.onConfirm!(widget.pickerModel.finalTime()!);
-                    }
-                  },
                 ),
+            SizedBox(
+              height: theme.titleHeight,
+              child: Center(child: Text(title, style: theme.titleStyle)),
+            ),
+            SizedBox(
+              height: theme.titleHeight,
+              child: CupertinoButton(
+                pressedOpacity: 0.3,
+                padding: EdgeInsetsDirectional.only(end: 16, top: 0),
+                child: Text(done, style: theme.doneStyle),
+                onPressed: () {
+                  Navigator.pop(context, widget.pickerModel.finalTime());
+                  if (widget.route.onConfirm != null) {
+                    widget.route.onConfirm!(widget.pickerModel.finalTime()!);
+                  }
+                },
               ),
-            ],
-          ),
-        ));
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   String _localeDone() {
@@ -662,6 +698,7 @@ class _BottomPickerLayout extends SingleChildLayoutDelegate {
     this.bottomPadding = 0,
     this.isHeng = false,
     this.screenWidth = 0,
+    this.popupDirection = DatePickerPopupDirection.bottomToTop,
   });
 
   final double progress;
@@ -670,6 +707,7 @@ class _BottomPickerLayout extends SingleChildLayoutDelegate {
   final double bottomPadding;
   final bool isHeng;
   final double screenWidth;
+  final DatePickerPopupDirection popupDirection;
 
   @override
   BoxConstraints getConstraintsForChild(BoxConstraints constraints) {
@@ -693,12 +731,21 @@ class _BottomPickerLayout extends SingleChildLayoutDelegate {
 
   @override
   Offset getPositionForChild(Size size, Size childSize) {
-    final height = size.height - childSize.height * progress;
-    return Offset(0.0, height);
+    switch (popupDirection) {
+      case DatePickerPopupDirection.bottomToTop:
+        final height = size.height - childSize.height * progress;
+        return Offset(0.0, height);
+      case DatePickerPopupDirection.rightToLeft:
+        final top = size.height - childSize.height;
+        final left = size.width * (1 - progress);
+        return Offset(left, top);
+    }
   }
 
   @override
   bool shouldRelayout(_BottomPickerLayout oldDelegate) {
-    return progress != oldDelegate.progress || isHeng != oldDelegate.isHeng;
+    return progress != oldDelegate.progress ||
+        isHeng != oldDelegate.isHeng ||
+        popupDirection != oldDelegate.popupDirection;
   }
 }
